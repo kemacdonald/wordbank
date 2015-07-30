@@ -1,7 +1,6 @@
 library(dplyr)
 library(ggplot2)
 library(shiny)
-# library(MASS)
 library(magrittr)
 library(tidyr)
 library(directlabels)
@@ -76,6 +75,12 @@ shinyServer(function(input, output, session) {
   
   admins <- get.administration.data(common.tables)
   
+#   wordbank <- connect_to_wordbank()
+#   
+#   common.tables <- get_common_tables(wordbank)
+#   
+#   admins <- get_administration_data()
+  
   items <- get.item.data(common.tables) %>%
     mutate(definition = iconv(definition, from = "utf8", to = "utf8"))
   
@@ -149,17 +154,40 @@ shinyServer(function(input, output, session) {
   
   ############## PREPROCESS DATA #############
   
-  
+  # get basic aoa dataframe
   data <- reactive({
-    data.fun(admins, instrument(), input.measure())
+    childes.freqs <- read_csv("childes.freqs.csv") %>%
+      gather(word,input.freq) %>%
+      group_by(word) %>%
+      summarise(input.freq = log(sum(input.freq)))
+    
+    xs <- 8:36
+    
+    aoas <- data.fun(admins, instrument(), input.measure()) %>% 
+      rename(word = item) %>%
+      group_by(word) %>%
+      do(data.frame(aoa = xs[inv.logit(predict(lm(mean ~ age, data=.), 
+                                               data.frame(age = xs))) > .5][1]))
+    
+    aoas %>% 
+      left_join(childes.freqs) 
+  })
+
+  # subset data
+  d.subset <- reactive({
+    if (input$cats == "All") {
+      data() 
+    }
+    # CATEGORY FUNCTIONALITY NOT IMPLEMENTED
+#     else { 
+#       data() %>% filter(small.cat %in% input$cats) 
+#     }
   })
   
-  xs <- 8:36
-  
- 
-  
   # fit model to cat of interest
-  model <- function () {
+  rmodel <- reactive({if (input$robust) { "rlm" } else { "lm" }})
+  
+  model <- reactive ({
     if (input$robust) {
       rlm(as.formula(paste("aoa ~ ",str_c(input$pred_vars,collapse=" + ")," + 1", sep="")),
           data=d.subset(), na.action = na.exclude)
@@ -167,50 +195,26 @@ shinyServer(function(input, output, session) {
       lm(as.formula(paste("aoa ~ ",str_c(input$pred_vars,collapse=" + ")," + 1", sep="")),
          data=d.subset(), na.action = na.exclude)      
     }
-  }
+  })
   
-
+  d.plot <- reactive({
+    d.plot <- d.subset()
+    d.plot$aoa.pred <- predict(model()) 
+    d.plot %>% filter(!is.na(aoa.pred))
+  })
+  
   ############## PLOT #############
   
-  plot <- function() {
-    d.subset <- function() {
-      if (input$cats == "All") {
-        d 
-      } else {      
-        d %>% filter(small.cat %in% input$cats) 
-      }
-    }
-    
-    aoas <- data() %>% 
-      rename(word = item) %>%
-      group_by(word) %>%
-      do(data.frame(aoa = xs[inv.logit(predict(lm(mean ~ age, data=.), 
-                                               data.frame(age = xs))) > .5][1]))
-    
-    childes.freqs <- read_csv("childes.freqs.csv") %>%
-      gather(word,input.freq) %>%
-      group_by(word) %>%
-      summarise(input.freq = log(sum(input.freq)))
-    
-    
-    d <- aoas %>% 
-      left_join(childes.freqs) 
-    
-    d.plot <- d
-    d.plot$aoa.pred <- predict(model()) 
-    d.plot %<>% filter(!is.na(aoa.pred))
-    
-    rmodel <- reactive({if (input$robust) { "rlm" } else { "lm" }})
-    
+  plot <- reactive({
+
     qplot(aoa.pred, aoa, 
           xlab = "Predicted AoA", 
           ylab = "Actual AoA", 
-          data=d.plot) + 
+          data=d.plot()) + 
       geom_smooth(method = rmodel())
-  }
+  })
   
   ## Find word in multiple forms
-  
   observe({
     if (length(input.forms()) == 1) {
       words <- names(filter(instrument.tables,
