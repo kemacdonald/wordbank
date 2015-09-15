@@ -4,86 +4,85 @@ library(tidyr)
 library(dplyr)
 library(ggplot2)
 library(directlabels)
-library(RMySQL)
+library(langcog)
 source("../app_themes.R")
-source("../data_loading.R")
-source("../palette.R")
+#source("../data_loading.R")
+#source("../palette.R")
 Sys.setlocale(locale="en_US.UTF-8")
-options(error = NULL)
 
 ## DEBUGGING
-# input <- list(language = "English", form = "WG WS", measure = "produces",
-#             words = c(), wordform = NULL, complexity = NULL)
+input <- list(language = "English", form = "WG WS", measure = "produces",
+            words = c("dog"), categories = c("animals"))#wordform = NULL, complexity = NULL)
 
-list.items.by.definition <- function(item.data) {
-  items <- item.data$item.id
-  names(items) <- item.data$definition
+list_items_by_definition <- function(item_data) {
+  items <- item_data$item_id
+  names(items) <- item_data$definition
   return(items)
 }
 
-list.items.by.id <- function(item.data) {
-  items <- item.data$definition
-  names(items) <- item.data$item.id
+list_items_by_id <- function(item_data) {
+  items <- item_data$definition
+  names(items) <- item_data$item_id
   return(items)
 }
 
-data.fun <- function(admins, fun.instrument, fun.measure, fun.words) {#, wordform, complexity) {
-
-  instrument.word.data <- function(inst_id) {
-    inst <- filter(fun.instrument, instrument_id == inst_id)
-    word_ids <- inst$words.by.definition[[1]][fun.words]
-    get.instrument.data(inst$table[[1]], word_ids[!is.na(word_ids)]) %>%
-      mutate(instrument_id = inst$instrument_id)
-  }
-
-  if(!is.null(fun.words)) {
-    word.data <- bind_rows(sapply(fun.instrument$instrument_id, instrument.word.data, simplify = FALSE)) %>% 
-      mutate(produces = value == 'produces',
-             understands = value == 'understands' | value == 'produces') %>%
-      select(-value) %>%
-      gather(measure, value, produces, understands) %>%
-      filter(measure == fun.measure) %>%
-      left_join(admins) %>%
-      filter(!is.na(age)) %>%
-      group_by(instrument_id, item.id, age) %>%
-      summarise(mean = mean(value, na.rm = TRUE)) %>%
-      group_by(instrument_id) %>%
-      mutate(item.id = paste("item_", item.id, sep = "")) %>%
-      rowwise() %>%
-      mutate(item = filter(fun.instrument,
-                           fun.instrument$instrument_id == instrument_id)$words.by.id[[1]][item.id],
-             type = "word") %>%
-      left_join(select(fun.instrument, instrument_id, form)) %>%
-      select(-instrument_id, -item.id)
-  } else {word.data <- data.frame()}
-  
-#   if(!is.null(input.wordform)) {
-#     wordform.data <- get.instrument.data(instrument.table, input.wordform) %>%
-#       mutate(produces = value == 'produces') %>%
+# data.fun <- function(admins, fun.instrument, fun.measure, fun.words) {#, wordform, complexity) {
+# 
+#   instrument.word.data <- function(inst_id) {
+#     inst <- filter(fun.instrument, instrument_id == inst_id)
+#     word_ids <- inst$words.by.definition[[1]][fun.words]
+#     get.instrument.data(inst$table[[1]], word_ids[!is.na(word_ids)]) %>%
+#       mutate(instrument_id = inst$instrument_id)
+#   }
+# 
+#   if(!is.null(fun.words)) {
+#     word.data <- bind_rows(sapply(fun.instrument$instrument_id, instrument.word.data, simplify = FALSE)) %>% 
+#       mutate(produces = value == 'produces',
+#              understands = value == 'understands' | value == 'produces') %>%
 #       select(-value) %>%
+#       gather(measure, value, produces, understands) %>%
+#       filter(measure == fun.measure) %>%
 #       left_join(admins) %>%
-#       group_by(item.id, age) %>%
-#       summarise(score = mean(produces, na.rm=TRUE)) %>%
-#       rowwise %>%
-#       mutate(item = instrument$wordform.by.id[[1]][[paste("item_", item.id, sep="")]],
-#              type = 'wordform')
-#   } else {wordform.data <- data.frame()}
+#       filter(!is.na(age)) %>%
+#       group_by(instrument_id, item.id, age) %>%
+#       summarise(mean = mean(value, na.rm = TRUE)) %>%
+#       group_by(instrument_id) %>%
+#       mutate(item.id = paste("item_", item.id, sep = "")) %>%
+#       rowwise() %>%
+#       mutate(item = filter(fun.instrument,
+#                            fun.instrument$instrument_id == instrument_id)$words.by.id[[1]][item.id],
+#              type = "word") %>%
+#       left_join(select(fun.instrument, instrument_id, form)) %>%
+#       select(-instrument_id, -item.id)
+#   } else {word.data <- data.frame()}
 #   
-#   if(!is.null(input.complexity)) {
-#     complexity.data <- get.instrument.data(instrument.table, input.complexity) %>%
-#       mutate(complex = value == 'complex') %>%
-#       select(-value) %>%
-#       left_join(admins) %>%
-#       group_by(item.id, age, form) %>%
-#       summarise(score = mean(complex, na.rm=TRUE)) %>%
-#       rowwise %>%
-#       mutate(item = instrument$complexity.by.id[[1]][[paste("item_", item.id, sep="")]],
-#              type = 'complexity')
-#   } else {complexity.data <- data.frame()}
- 
-  word.data
-#  bind_rows(word.data, wordform.data, complexity.data)
-}
+# #   if(!is.null(input.wordform)) {
+# #     wordform.data <- get.instrument.data(instrument.table, input.wordform) %>%
+# #       mutate(produces = value == 'produces') %>%
+# #       select(-value) %>%
+# #       left_join(admins) %>%
+# #       group_by(item.id, age) %>%
+# #       summarise(score = mean(produces, na.rm=TRUE)) %>%
+# #       rowwise %>%
+# #       mutate(item = instrument$wordform.by.id[[1]][[paste("item_", item.id, sep="")]],
+# #              type = 'wordform')
+# #   } else {wordform.data <- data.frame()}
+# #   
+# #   if(!is.null(input.complexity)) {
+# #     complexity.data <- get.instrument.data(instrument.table, input.complexity) %>%
+# #       mutate(complex = value == 'complex') %>%
+# #       select(-value) %>%
+# #       left_join(admins) %>%
+# #       group_by(item.id, age, form) %>%
+# #       summarise(score = mean(complex, na.rm=TRUE)) %>%
+# #       rowwise %>%
+# #       mutate(item = instrument$complexity.by.id[[1]][[paste("item_", item.id, sep="")]],
+# #              type = 'complexity')
+# #   } else {complexity.data <- data.frame()}
+#  
+#   word.data
+# #  bind_rows(word.data, wordform.data, complexity.data)
+# }
 
 
 ##### SERVER STARTS HERE
@@ -92,81 +91,134 @@ shinyServer(function(input, output, session) {
   output$loaded <- reactive({0})
   outputOptions(output, 'loaded', suspendWhenHidden=FALSE)
   
-  wordbank <- connect.to.wordbank("local")
+#  wordbank <- connect.to.wordbank("local")
   
-  common.tables <- get.common.tables(wordbank)
+#  common_tables <- get_common_tables()
   
-  admins <- get.administration.data(common.tables)
+  admins <- get_administration_data(mode = "local")
   
-  items <- get.item.data(common.tables) %>%
+  items <- get_item_data("local") %>%
     mutate(definition = iconv(definition, from = "utf8", to = "utf8"))
+
+  admins <- get_common_table("administration", mode = "local")
   
-  start.instrument.tables <- init.instrument.tables(wordbank, common.tables)
+  categories  <- get_common_table("category", mode = "local") %>%
+    rename(category_id = id)
   
-  instrument.tables <- start.instrument.tables %>%
+  category_sizes <- get_common_table("categorysize") %>%
+    left_join(categories)
+    #as.data.frame() %>%
+    left_join(admins) %>%
+    filter(instrument_id %in% instrument()$instrument_id)
+  
+  instrument_table <- get_common_table("instrument", mode = "local") %>%
+    as.data.frame() %>%
+    rename(instrument_id = id)
+
+  instruments <- instrument_table %>%
     group_by(instrument_id) %>%
-    do(words.by.definition = list.items.by.definition(filter(items,
+    do(words_by_definition = list_items_by_definition(filter(items,
                                                              instrument_id==.$instrument_id,
                                                              type=='word')),
-       words.by.id = list.items.by.id(filter(items,
+       words_by_id = list_items_by_id(filter(items,
                                              instrument_id==.$instrument_id,
-                                             type=='word')),
-       wordform.by.definition = list.items.by.definition(filter(items,
-                                                                instrument_id==.$instrument_id,
-                                                                type=='word_form')),
-       wordform.by.id = list.items.by.id(filter(items,
-                                                instrument_id==.$instrument_id,
-                                                type=='word_form')),
-       complexity.by.definition = list.items.by.definition(filter(items,
-                                                                  instrument_id==.$instrument_id,
-                                                                  type=='complexity')),
-       complexity.by.id = list.items.by.id(filter(items,
-                                                  instrument_id==.$instrument_id,
-                                                  type=='complexity'))) %>%
-    left_join(start.instrument.tables)
+                                             type=='word'))) %>%
+    left_join(instrument_table)
   
-  languages <- sort(unique(instrument.tables$language))
+
+#   start.instrument.tables <- init.instrument.tables(wordbank, common.tables)
+#   
+#   instrument.tables <- start.instrument.tables %>%
+#     group_by(instrument_id) %>%
+#     do(words.by.definition = list.items.by.definition(filter(items,
+#                                                              instrument_id==.$instrument_id,
+#                                                              type=='word')),
+#        words.by.id = list.items.by.id(filter(items,
+#                                              instrument_id==.$instrument_id,
+#                                              type=='word')),
+#        wordform.by.definition = list.items.by.definition(filter(items,
+#                                                                 instrument_id==.$instrument_id,
+#                                                                 type=='word_form')),
+#        wordform.by.id = list.items.by.id(filter(items,
+#                                                 instrument_id==.$instrument_id,
+#                                                 type=='word_form')),
+#        complexity.by.definition = list.items.by.definition(filter(items,
+#                                                                   instrument_id==.$instrument_id,
+#                                                                   type=='complexity')),
+#        complexity.by.id = list.items.by.id(filter(items,
+#                                                   instrument_id==.$instrument_id,
+#                                                   type=='complexity'))) %>%
+#     left_join(start.instrument.tables)
   
-  start.language <- function() {"English"}
-  start.form <- function() {"WS"}
-  start.measure <- function() {"produces"}
-  start.words <- function(words) {words[[1]]}
-  start.wordform <- function(wordform) {}
-  start.complexity <- function(complexity) {}
+  languages <- sort(unique(instruments$language))
   
-  input.language <- reactive({
-    ifelse(is.null(input$language), start.language(), input$language)
+  start_language <- function() {"English"}
+  start_form <- function() {"WS"}
+  start_measure <- function() {"produces"}
+  start_words <- function(words) {words[[1]]}
+  start_wordform <- function(wordform) {}
+  start_complexity <- function(complexity) {}
+  
+  input_language <- reactive({
+    ifelse(is.null(input$language), start_language(), input$language)
   })
   
-  input.form <- reactive({
+  input_form <- reactive({
     #if (is.null(input$form)) start.form() else strsplit(input$form, ' ')[[1]]
-    ifelse(is.null(input$form), start.form(), input$form)  
+    ifelse(is.null(input$form), start_form(), input$form)  
   })
 
-  input.forms <- reactive({
-    strsplit(input.form(), ' ')[[1]]
+  input_forms <- reactive({
+    strsplit(input_form(), ' ')[[1]]
   })
   
-  input.measure <- reactive({
-    ifelse(is.null(input$measure), start.measure(), input$measure)
+  input_measure <- reactive({
+    ifelse(is.null(input$measure), start_measure(), input$measure)
   })
   
-  input.words <- reactive(input$words)
-  input.wordform <- reactive(input$wordform)
-  input.complexity <- reactive(input$complexity)
+  input_words <- reactive(input$words)
+  input_wordform <- reactive(input$wordform)
+  input_complexity <- reactive(input$complexity)
   
-  instrument <- reactive({
-    inst <- filter(instrument.tables, language == input.language(), form %in% input.forms())$instrument_id
-    for (inst_id in inst) {
-      if (length(instrument.tables[instrument.tables$instrument_id == inst_id, ]$table[[1]]) == 0) {
-        instrument.tables <<- add.instrument.table(wordbank, instrument.tables, inst_id)
-      }
-    }
-    filter(instrument.tables, language == input.language(), form %in% input.forms())
-  })
+   instrument <- reactive({
+#     inst <- filter(instruments, language == input_language(), form %in% input_forms())$instrument_id
+#     for (inst_id in inst) {
+#       if (length(instrument.tables[instrument.tables$instrument_id == inst_id, ]$table[[1]]) == 0) {
+#         instrument.tables <<- add.instrument.table(wordbank, instrument.tables, inst_id)
+#       }
+#     }
+     filter(instruments, language == input_language(), form %in% input_forms())
+   })
   
   data <- reactive({
-    data.fun(admins, instrument(), input.measure(), input.words())
+        
+    instrument_word_data <- function(inst_id) {
+      inst <- filter(instrument(), instrument_id == inst_id)
+      table <- get_instrument_table(inst$language, inst$form, "local")
+      word_ids <- inst$words_by_definition[[1]][input_words()]
+      get_instrument_data(table, word_ids[!is.na(word_ids)],
+                          administrations = admins) %>%
+        mutate(instrument_id = inst$instrument_id)
+    }
+    
+    if(!is.null(input_words())) {
+      word_data <- bind_rows(lapply(instrument()$instrument_id, instrument_word_data)) %>% 
+        mutate(produces = value == 'produces',
+               understands = value == 'understands' | value == 'produces') %>%
+        select(-value) %>%
+        gather(measure, value, produces, understands) %>%
+        filter(measure == input_measure()) %>%
+        filter(!is.na(age)) %>%
+        group_by(instrument_id, num_item_id, age) %>%
+        summarise(mean = mean(value, na.rm = TRUE)) %>%
+        mutate(item_id = paste0("item_", num_item_id)) %>%
+        rowwise() %>%
+        mutate(item = filter(instrument(),
+                             instrument_id == instrument_id)$words_by_id[[1]][item_id],
+               type = "word") %>%
+        left_join(select(instrument(), instrument_id, form)) %>%
+        select(-instrument_id, -item_id, -num_item_id)
+    } else {word.data <- data.frame()}
   })
   
   ylabel <- reactive({
