@@ -3,14 +3,12 @@
 # - cross-linguisic using unilemmas
 
 library(shiny)
-library(readr)
-library(dplyr)
-library(tidyr)
-library(ggplot2)
 library(langcog)
 library(wordbankr)
 library(stringr)
 library(networkD3)
+library(visNetwork)
+library(tidyverse)
 
 theme_set(theme_mikabr(base_size = 14))
 font <- theme_mikabr()$text$family
@@ -40,23 +38,23 @@ shinyServer(function(input, output) {
       choices <- c("Production" = "production")
     } else if (input$instrument == "WG") {
       choices <- c("Comprehension" = "comprehension", 
-        "Production" = "production")
+                   "Production" = "production")
     }
     
     selectInput("measure", "AoA measure",
-                   choices = choices,
-                   selected = "production")
+                choices = choices,
+                selected = "production")
   })
   
   
   output$assoc_control <- renderUI({
     req(input$source)
     if(input$source == "MFN") {
-    selectInput("assocs", "Association type",
-              choices = c("Conceptual" = "conceptual", 
-                          "Perceptual" = "perceptual", 
-                          "All" = "all"),
-              selected = "all")
+      selectInput("assocs", "Association type",
+                  choices = c("Conceptual" = "conceptual", 
+                              "Perceptual" = "perceptual", 
+                              "All" = "all"),
+                  selected = "all")
     }
   })
   
@@ -70,12 +68,12 @@ shinyServer(function(input, output) {
       start_point <- .4
       low_point <- .1
       step_size <- .1
-    # } else if (input$source == "PB"){
-    #   title <- "Cosine Similarity"
-    #   high_point <- 1
-    #   start_point <- .6
-    #   low_point <- -1
-    #   step_size <- .1
+      # } else if (input$source == "PB"){
+      #   title <- "Cosine Similarity"
+      #   high_point <- 1
+      #   start_point <- .6
+      #   low_point <- -1
+      #   step_size <- .1
     } else if (input$source == "MFN"){
       title <- "Number of Shared Features"
       high_point <- 4
@@ -83,12 +81,12 @@ shinyServer(function(input, output) {
       low_point <- 1
       step_size <- 1
     }
-  
+    
     sliderInput("cutoff", label=title,
-                  min = low_point, max = high_point, 
-                  value = start_point, step = step_size)
+                min = low_point, max = high_point, 
+                value = start_point, step = step_size)
   })
-
+  
   ########## READ IN AOAS
   aoa_data <- reactive({
     
@@ -101,7 +99,7 @@ shinyServer(function(input, output) {
     }else if (input$instrument == "WG" & input$measure == "production" ) {
       raw_aoas <- wg_prod_aoas
     }
-     
+    
     if(input$source == "MFN") {
       raw_aoas %>%
         rename(label = definition) %>% 
@@ -119,7 +117,7 @@ shinyServer(function(input, output) {
     if (input$source == "MFR") {
       assocs <- all_assocs
     } else if (input$source == "W2V") {
-        assocs <- w2v_assocs
+      assocs <- w2v_assocs
     } else if (input$source == "PB") {
       assocs <- pb_assocs
     } else if (input$assocs == "conceptual") {
@@ -149,7 +147,8 @@ shinyServer(function(input, output) {
       mutate(id = 0:(n()-1), 
              identity = 1) %>%
       select_("label", "id", input$group) %>%
-      rename_("group" = input$group)
+      rename_("group" = input$group) %>% 
+      mutate(value = 2)
   })
   
   ########## PARSE EDGE DATA
@@ -173,10 +172,11 @@ shinyServer(function(input, output) {
       select(in_node, out_node, width) %>%
       filter(in_node != out_node)
   })
-      
+  
   ########## FILTER EDGES 
   assoc_edges <- reactive({
     req(input$weighted)
+    req(input$cutoff)
     
     scaling = ifelse(input$source == "W2V", 4, 1)
     
@@ -193,26 +193,48 @@ shinyServer(function(input, output) {
   })
   
   ########## RENDER GRAPH
-  output$network <- renderForceNetwork({
-    forceNetwork(Links = assoc_edges(), Nodes = assoc_nodes(), Source = "in_node",
-                 Target = "out_node", Value = "width", NodeID = "label",
-                 linkWidth = JS("function(d) { return d.value; }"),
-                 Group = "group", opacity = .8, zoom = TRUE, opacityNoHover = .8,
-                 legend = input$group != "identity",
-                 linkColour = "#cccccc", fontSize = 12,
-                 colourScale = ifelse(length(unique(assoc_nodes()$group)) > 10, 
-                                      JS("d3.scale.category20()"),
-                                      JS("d3.scale.category10()")))
-  })
   
-  # output$network <- renderVisNetwork({
-  #   visNetwork(assoc_nodes(), 
-  #              rename(assoc_edges(), from = in_node, to = out_node), 
-  #              width = "100%", height="100%") %>%
-  #     visPhysics(stabilization = TRUE) %>%
-  #    visEdges(smooth = FALSE, selfReferenceSize= FALSE)
-  #   
+  # output$network1 <- renderForceNetwork({
+  #   forceNetwork(Links = assoc_edges(), Nodes = assoc_nodes(), Source = "in_node",
+  #                Target = "out_node", Value = "width", NodeID = "label",
+  #                linkWidth = JS("function(d) { return d.value; }"),
+  #                Group = "group", opacity = .8, zoom = TRUE, opacityNoHover = .8,
+  #                legend = input$group != "identity", charge = -5,
+  #                linkColour = "#cccccc", fontSize = 12,
+  #                colourScale = ifelse(length(unique(assoc_nodes()$group)) > 10,
+  #                                     JS("d3.scaleOrdinal(d3.schemeCategory20)"),
+  #                                     JS("d3.scaleOrdinal(d3.schemeCategory10)")))
   # })
+  
+  # output$network2 <- renderForceNetwork({
+  #   forceNetwork(Links = assoc_edges(), Nodes = assoc_nodes(), Source = "in_node",
+  #                Target = "out_node", Value = "width", NodeID = "label",
+  #                linkWidth = JS("function(d) { return d.value; }"),
+  #                Group = "group", opacity = .8, zoom = F, opacityNoHover = .8,
+  #                legend = input$group != "identity", charge = -5,
+  #                linkColour = "#cccccc", fontSize = 12,
+  #                colourScale = ifelse(length(unique(assoc_nodes()$group)) > 10,
+  #                                     JS("d3.scaleOrdinal(d3.schemeCategory20)"),
+  #                                     JS("d3.scaleOrdinal(d3.schemeCategory10)")))
+  # })
+  # 
+  output$network1 <- renderVisNetwork({
+    visNetwork(assoc_nodes(),
+               rename(assoc_edges(), from = in_node, to = out_node),
+               width = "100%", height="100%"
+               ) %>%
+      visEdges(color = "darkgrey") %>% 
+      visNodes(font = list(size = 30)) %>% 
+      visPhysics(solver = "repulsion", 
+                 stabilization = T,
+                 timestep = 0.1
+                 ) %>%
+      visEdges(smooth = FALSE, selfReferenceSize= FALSE) %>% 
+      visOptions(highlightNearest = TRUE,
+                 selectedBy = "group") %>% 
+      visLayout(randomSeed = 123)
+    
+  })
   
   output$loaded <- reactive(1)
 })

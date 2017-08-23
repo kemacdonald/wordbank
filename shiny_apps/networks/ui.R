@@ -3,6 +3,8 @@ library(shinythemes)
 library(shinyBS)
 library(markdown)
 library(networkD3)
+library(visNetwork)
+
 shinyUI(fluidPage(
   
   theme = shinytheme("spacelab"),
@@ -24,43 +26,65 @@ shinyUI(fluidPage(
       
       conditionalPanel(
         condition = "output.loaded == 1",
+        selectInput("num_networks", "Number of networks",
+                    choices = c("One" = "One", 
+                                "Two" = "Two"),
+                    selected = "One"),
         selectInput("source", "Network Source",
                     choices = c("McRae Feature Norms" = "MFN", 
-                                "Word2Vec Model" = "W2V"), 
-                                # "Picture Book Model" = "PB"),
+                                "Word2Vec Model" = "W2V",
+                                "Phonological Edit Distance" = "PED"), 
+                    # "Picture Book Model" = "PB"),
                     selected = "W2V"),
         selectInput("instrument", "CDI Instrument",
-                       choices = c("Words & Sentences" = "WS", 
-                                   "Words & Gestures" = "WG"),
-                       selected = "production"),
+                    choices = c("Words & Sentences" = "WS", 
+                                "Words & Gestures" = "WG"),
+                    selected = "production"),
         uiOutput("measure"),
         uiOutput("assoc_control"),
         sliderInput("age", "Age of Acquisition",
                     min = 6, 
                     max = 36, 
-                    value = 20, step = 1),
+                    value = 16, step = 1), # change back to 20 for production code
         uiOutput('cutoff'),
         selectizeInput("weighted", "Should graph edges be weighted?",
-                    choices = c("Yes" = TRUE, 
-                                "No" = FALSE),
-                    selected = TRUE),
+                       choices = c("Yes" = TRUE, 
+                                   "No" = FALSE),
+                       selected = TRUE),
         selectizeInput("group", "Grouping variable",
                        choices = c("None" = "identity", 
                                    "CDI category" = "category",
                                    "Lexical class" = "lexical_class"),
                        selected = "lexical_class"),
-        width = 3)),
+        width = 3)
+      ),
+    
+    # mainPanel(
+    #   width = 9,
+    #   tags$style(type = "text/css",
+    #              ".shiny-output-error { visibility: hidden; }",
+    #              ".shiny-output-error:before { visibility: hidden; }"),
+    #   conditionalPanel(
+    #     condition = "output.loaded == 1",
+    #     forceNetworkOutput("network")
+    #     # visNetworkOutput("network", height = "800px")
+    #   )
+    # )
     
     mainPanel(
+      
       width = 9,
+      
       tags$style(type = "text/css",
                  ".shiny-output-error { visibility: hidden; }",
                  ".shiny-output-error:before { visibility: hidden; }"),
+      
       conditionalPanel(
-        condition = "output.loaded == 1",
-        forceNetworkOutput("network")
-        # visNetworkOutput("network", height = "800px")
-        
+        condition = "output.loaded == 1 & input.num_networks == 'One'",
+        fluidRow(
+          splitLayout(cellWidths = c("100%", "0%"), # change to 50/50 to show two networks
+                      visNetworkOutput("network1", height = "600px"))
+        )
       )
     )
   )
