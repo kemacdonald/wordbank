@@ -7,6 +7,7 @@ library(langcog)
 library(wordbankr)
 library(stringr)
 library(networkD3)
+library(igraph)
 library(visNetwork)
 library(tidyverse)
 
@@ -148,7 +149,15 @@ shinyServer(function(input, output) {
              identity = 1) %>%
       select_("label", "id", input$group) %>%
       rename_("group" = input$group) %>% 
-      mutate(value = 2)
+      mutate(value = 2,
+             color = case_when(
+               group == "nouns" ~ "dodgerblue",
+               group == "other" ~ "darkorange",
+               group == "verbs" ~ "red",
+               group == "adjectives" ~ "pink",
+               group == "function_words" ~ "green",
+               TRUE ~ "darkorange" 
+             ))
   })
   
   ########## PARSE EDGE DATA
@@ -221,18 +230,17 @@ shinyServer(function(input, output) {
   output$network1 <- renderVisNetwork({
     visNetwork(assoc_nodes(),
                rename(assoc_edges(), from = in_node, to = out_node),
-               width = "100%", height="100%"
+               width = "100%", height = "100%"
                ) %>%
-      visEdges(color = "darkgrey") %>% 
-      visNodes(font = list(size = 30)) %>% 
-      visPhysics(solver = "repulsion", 
-                 stabilization = T,
-                 timestep = 0.1
-                 ) %>%
-      visEdges(smooth = FALSE, selfReferenceSize= FALSE) %>% 
-      visOptions(highlightNearest = TRUE,
-                 selectedBy = "group") %>% 
-      visLayout(randomSeed = 123)
+      visIgraphLayout(layout = "layout_nicely", randomSeed = 123,
+                      physics = F) %>%
+      # visPhysics(stabilization = list(enabled = T, fit = T),
+      #            timestep = .5
+      #) %>%
+      visEdges(color = "darkgrey") %>%
+      visNodes(font = list(size = 60), size = 20) %>%
+      visOptions(highlightNearest = list(enabled = T, degree = 2, hover = F),
+                             selectedBy = "group")
     
   })
   

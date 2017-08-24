@@ -11,12 +11,13 @@ shinyUI(fluidPage(
   
   br(),
   bsCollapse(id = "doc", open = "title",
-             bsCollapsePanel(title = h3("Semantic Networks"),
+             bsCollapsePanel(title = h4("Semantic Networks"),
                              includeMarkdown("docs/description.md"),
                              value = "title",
                              style = "default")),
   
   sidebarLayout(
+    
     sidebarPanel(
       width = 3,
       conditionalPanel(
